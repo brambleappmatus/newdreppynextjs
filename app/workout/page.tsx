@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { alternativeExercises } from '@/lib/mock-data';
@@ -33,7 +33,29 @@ interface Workout {
     exercises: WorkoutExercise[];
 }
 
+// Loading fallback for Suspense
+function WorkoutLoading() {
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-black flex items-center justify-center p-6">
+            <div className="text-center space-y-4">
+                <div className="w-12 h-12 mx-auto border-3 border-gray-900 dark:border-white border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-gray-600 dark:text-gray-400">Loading workout...</p>
+            </div>
+        </div>
+    );
+}
+
+// Main page wrapper with Suspense
 export default function WorkoutPage() {
+    return (
+        <Suspense fallback={<WorkoutLoading />}>
+            <WorkoutContent />
+        </Suspense>
+    );
+}
+
+// Actual workout content that uses useSearchParams
+function WorkoutContent() {
     const searchParams = useSearchParams();
     const programId = searchParams.get('program');
     const supabase = createClient();
@@ -383,8 +405,8 @@ export default function WorkoutPage() {
                                 setCurrentWeight(workout.exercises[idx].sets[0]?.weight ?? 0);
                             }}
                             className={`h-2 rounded-full transition-all shrink-0 ${workout.exercises.length <= 8
-                                    ? 'flex-1 min-w-6 max-w-12'
-                                    : 'w-6'
+                                ? 'flex-1 min-w-6 max-w-12'
+                                : 'w-6'
                                 } ${idx === activeExerciseIndex
                                     ? 'bg-gray-900 dark:bg-white'
                                     : ex.sets.every(s => s.completed)
