@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { alternativeExercises } from '@/lib/mock-data';
 import { NumberWheel } from '@/components/ui/number-picker';
@@ -57,6 +57,7 @@ export default function WorkoutPage() {
 // Actual workout content that uses useSearchParams
 function WorkoutContent() {
     const searchParams = useSearchParams();
+    const router = useRouter();
     const programId = searchParams.get('program');
     const supabase = createClient();
 
@@ -74,6 +75,7 @@ function WorkoutContent() {
     const [showAllSets, setShowAllSets] = useState(false);
     const [selectedDifficulty, setSelectedDifficulty] = useState<'easy' | 'normal' | 'hard'>('normal');
     const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
+    const [showEndConfirm, setShowEndConfirm] = useState(false);
 
     // Fetch workout data based on program ID
     useEffect(() => {
@@ -160,6 +162,11 @@ function WorkoutContent() {
     ).length ?? 0;
     const totalExercises = workout?.exercises.length ?? 0;
     const workoutComplete = completedExercises === totalExercises && totalExercises > 0;
+
+    // Check if any set has been completed (workout is in progress)
+    const workoutStarted = workout?.exercises.some(ex =>
+        ex.sets.some(set => set.completed)
+    ) ?? false;
 
     // Sync reps and weight when exercise or set changes
     useEffect(() => {
@@ -821,6 +828,39 @@ function WorkoutContent() {
                 )
             }
 
+            {/* End Workout Confirmation Modal */}
+            {showEndConfirm && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-6">
+                    <div className="bg-white dark:bg-[#1c1c1e] rounded-3xl p-6 max-w-sm w-full shadow-2xl">
+                        <div className="text-center mb-6">
+                            <div className="w-16 h-16 mx-auto bg-red-100 dark:bg-red-500/20 rounded-full flex items-center justify-center mb-4">
+                                <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">End Workout?</h3>
+                            <p className="text-gray-600 dark:text-gray-400 text-sm">
+                                You have an active workout session. If you leave now, your progress will be lost.
+                            </p>
+                        </div>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowEndConfirm(false)}
+                                className="flex-1 h-12 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-900 dark:text-white font-semibold rounded-2xl transition-all active:scale-95"
+                            >
+                                Continue
+                            </button>
+                            <button
+                                onClick={() => router.push('/')}
+                                className="flex-1 h-12 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-2xl transition-all active:scale-95"
+                            >
+                                End Session
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Bottom Action Bar */}
             <div className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-black/80 backdrop-blur-2xl border-t border-gray-200/50 dark:border-white/10 z-50 safe-bottom shadow-2xl">
                 <div className="max-w-2xl mx-auto px-6 py-5">
@@ -851,15 +891,21 @@ function WorkoutContent() {
                     ) : (
                         /* Action Buttons Mode */
                         <div className="flex items-center justify-between gap-3">
-                            <Link
-                                href="/"
+                            <button
+                                onClick={() => {
+                                    if (workoutStarted) {
+                                        setShowEndConfirm(true);
+                                    } else {
+                                        router.push('/');
+                                    }
+                                }}
                                 className="flex-1 h-12 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-900 dark:text-white font-semibold rounded-2xl transition-all active:scale-95 border border-gray-300 dark:border-white/20 flex items-center justify-center gap-2"
                             >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                                 </svg>
                                 Back
-                            </Link>
+                            </button>
                             <button
                                 onClick={() => setShowAIChat(true)}
                                 className="flex-1 h-12 bg-gray-900 dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-100 font-semibold rounded-2xl transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2"
