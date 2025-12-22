@@ -10,6 +10,10 @@ interface CoachingRequest {
     prWeight: number;
     prReps: number;
     trainingGoal: 'strength' | 'hypertrophy';
+    // Context from previous suggestion
+    previousTip?: string;
+    previousWeight?: number;
+    previousReps?: number;
 }
 
 export async function POST(request: NextRequest) {
@@ -24,7 +28,10 @@ export async function POST(request: NextRequest) {
             lastReps,
             prWeight,
             prReps,
-            trainingGoal
+            trainingGoal,
+            previousTip,
+            previousWeight,
+            previousReps,
         } = body;
 
         // Build context for AI
@@ -38,18 +45,44 @@ export async function POST(request: NextRequest) {
 
         const currentContext = `Currently set to: ${currentWeight}kg for ${currentReps} reps.`;
 
-        const prompt = `You are a concise workout coach. Give ONE short, actionable tip (max 15 words) for this set.
+        // Build conversation context if we have previous interaction
+        let conversationContext = '';
+        if (previousTip && previousWeight !== undefined && previousReps !== undefined) {
+            const weightChanged = currentWeight !== previousWeight;
+            const repsChanged = currentReps !== previousReps;
+            const weightIncreased = currentWeight > previousWeight;
+            const repsIncreased = currentReps > previousReps;
+
+            if (weightChanged || repsChanged) {
+                conversationContext = `
+IMPORTANT CONTEXT - Previous interaction:
+- You previously suggested: "${previousTip}"
+- User was at: ${previousWeight}kg × ${previousReps} reps
+- User changed to: ${currentWeight}kg × ${currentReps} reps
+${weightIncreased ? '- User INCREASED weight (they followed advice if you suggested adding weight!)' : ''}
+${repsIncreased ? '- User INCREASED reps (they followed advice if you suggested more reps!)' : ''}
+${currentWeight < previousWeight ? '- User DECREASED weight (maybe they need reassurance)' : ''}
+
+Acknowledge their adjustment positively if they followed your advice! Be encouraging about their choice.`;
+            }
+        }
+
+        const prompt = `You are a concise, encouraging workout coach. Give ONE short tip (max 18 words) for this set.
 
 Exercise: ${exerciseName} (${muscleGroup})
 ${goalContext}
 ${historyContext}
 ${currentContext}
+${conversationContext}
 
-Consider: Is the weight appropriate for their goal? Should they adjust? Are they close to a PR? 
-For strength: encourage heavier attempts, proper rest, compound power.
-For hypertrophy: encourage controlled reps, squeeze at top, full ROM, volume.
+Guidelines:
+- If user followed your previous advice (increased weight/reps), acknowledge it positively! ("Great choice!", "Perfect adjustment!", etc.)
+- If at or above PR, be extra encouraging about the achievement
+- For strength: encourage power, rest, progressive overload
+- For hypertrophy: encourage control, squeeze, mind-muscle connection
+- Be conversational and supportive, like a gym buddy
 
-Respond with ONLY the tip text, no quotes or formatting. Be encouraging and specific.`;
+Respond with ONLY the tip text, no quotes or formatting.`;
 
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
@@ -60,7 +93,7 @@ Respond with ONLY the tip text, no quotes or formatting. Be encouraging and spec
             body: JSON.stringify({
                 model: 'gpt-4o-mini',
                 messages: [{ role: 'user', content: prompt }],
-                max_tokens: 50,
+                max_tokens: 60,
                 temperature: 0.8,
             }),
         });
@@ -68,12 +101,12 @@ Respond with ONLY the tip text, no quotes or formatting. Be encouraging and spec
         if (!response.ok) {
             // Fallback to static tips if API fails
             return NextResponse.json({
-                tip: getStaticTip(trainingGoal, currentWeight, lastWeight, prWeight)
+                tip: getStaticTip(trainingGoal, currentWeight, previousWeight ?? 0, prWeight)
             });
         }
 
         const data = await response.json();
-        const tip = data.choices[0]?.message?.content?.trim() || getStaticTip(trainingGoal, currentWeight, lastWeight, prWeight);
+        const tip = data.choices[0]?.message?.content?.trim() || getStaticTip(trainingGoal, currentWeight, previousWeight ?? 0, prWeight);
 
         return NextResponse.json({ tip });
     } catch (error) {
@@ -84,13 +117,14 @@ Respond with ONLY the tip text, no quotes or formatting. Be encouraging and spec
     }
 }
 
-function getStaticTip(goal: string, current: number, last: number, pr: number): string {
+function getStaticTip(goal: string, current: number, previous: number, pr: number): string {
     if (goal === 'strength') {
         if (current >= pr && pr > 0) return '🔥 PR attempt! Rest well, brace hard, explode up!';
-        if (current > last && last > 0) return '💪 Heavier than last time - great progress!';
+        if (current > previous && previous > 0) return '💪 Nice! You bumped up the weight - let\'s crush it!';
         return 'Focus on power output and full lockout.';
     } else {
         if (current >= pr && pr > 0) return '🏆 At your max! Control every rep.';
+        if (current > previous && previous > 0) return '👍 Good call adding weight! Keep the tempo slow.';
         return 'Slow eccentric, squeeze at peak contraction.';
     }
 }

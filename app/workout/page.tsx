@@ -80,6 +80,7 @@ function WorkoutContent() {
     const [trainingGoal, setTrainingGoal] = useState<'strength' | 'hypertrophy'>('hypertrophy');
     const [coachingTip, setCoachingTip] = useState<string>('');
     const [tipLoading, setTipLoading] = useState(false);
+    const [previousTipContext, setPreviousTipContext] = useState<{ tip: string; weight: number; reps: number } | null>(null);
 
     // Fetch workout data based on program ID
     useEffect(() => {
@@ -261,17 +262,29 @@ function WorkoutContent() {
                     body: JSON.stringify({
                         exerciseName: activeExercise.name,
                         muscleGroup: activeExercise.muscleGroup,
-                        currentWeight: currentWeight,  // Use picker value
-                        currentReps: currentReps,      // Use picker value
+                        currentWeight: currentWeight,
+                        currentReps: currentReps,
                         lastWeight: history?.lastWeight ?? 0,
                         lastReps: history?.lastReps ?? 0,
                         prWeight: history?.prWeight ?? 0,
                         prReps: history?.prReps ?? 0,
                         trainingGoal,
+                        // Send previous context for conversational coaching
+                        previousTip: previousTipContext?.tip,
+                        previousWeight: previousTipContext?.weight,
+                        previousReps: previousTipContext?.reps,
                     }),
                 });
                 const data = await response.json();
-                setCoachingTip(data.tip || '');
+                const newTip = data.tip || '';
+                setCoachingTip(newTip);
+
+                // Save current context for next interaction
+                setPreviousTipContext({
+                    tip: newTip,
+                    weight: currentWeight,
+                    reps: currentReps,
+                });
             } catch (error) {
                 console.error('Failed to fetch coaching tip:', error);
                 setCoachingTip('');
@@ -282,6 +295,7 @@ function WorkoutContent() {
         // Debounce the API call (longer debounce for weight/rep changes)
         const timer = setTimeout(fetchCoachingTip, 800);
         return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeExerciseIndex, activeExercise, trainingGoal, exerciseHistory, currentWeight, currentReps]);
 
     // Loading state
