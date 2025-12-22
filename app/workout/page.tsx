@@ -77,6 +77,9 @@ function WorkoutContent() {
     const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
     const [showEndConfirm, setShowEndConfirm] = useState(false);
     const [exerciseHistory, setExerciseHistory] = useState<Record<string, { lastWeight: number; lastReps: number; prWeight: number; prReps: number }>>({});
+    const [trainingGoal, setTrainingGoal] = useState<'strength' | 'hypertrophy'>('hypertrophy');
+    const [coachingTip, setCoachingTip] = useState<string>('');
+    const [tipLoading, setTipLoading] = useState(false);
 
     // Fetch workout data based on program ID
     useEffect(() => {
@@ -242,6 +245,46 @@ function WorkoutContent() {
         }, 1000);
         return () => clearInterval(timer);
     }, [showRestTimer, restTimeLeft]);
+
+    // Fetch AI coaching tip when exercise changes
+    useEffect(() => {
+        const fetchCoachingTip = async () => {
+            if (!activeExercise) return;
+
+            const history = exerciseHistory[activeExercise.id];
+            const currentExWeight = workout?.exercises[activeExerciseIndex]?.sets[0]?.weight ?? 0;
+            const currentExReps = workout?.exercises[activeExerciseIndex]?.sets[0]?.targetReps ?? 10;
+
+            setTipLoading(true);
+            try {
+                const response = await fetch('/api/coaching-tip', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        exerciseName: activeExercise.name,
+                        muscleGroup: activeExercise.muscleGroup,
+                        currentWeight: currentExWeight,
+                        currentReps: currentExReps,
+                        lastWeight: history?.lastWeight ?? 0,
+                        lastReps: history?.lastReps ?? 0,
+                        prWeight: history?.prWeight ?? 0,
+                        prReps: history?.prReps ?? 0,
+                        trainingGoal,
+                    }),
+                });
+                const data = await response.json();
+                setCoachingTip(data.tip || '');
+            } catch (error) {
+                console.error('Failed to fetch coaching tip:', error);
+                setCoachingTip('');
+            }
+            setTipLoading(false);
+        };
+
+        // Debounce the API call
+        const timer = setTimeout(fetchCoachingTip, 300);
+        return () => clearTimeout(timer);
+    }, [activeExerciseIndex, activeExercise, trainingGoal, exerciseHistory, workout]);
 
     // Loading state
     if (loading) {
@@ -648,64 +691,77 @@ function WorkoutContent() {
                             View All Sets
                         </button>
 
-                        {/* Progress & Coaching Tips */}
-                        {(() => {
-                            const history = exerciseHistory[activeExercise.id];
-                            if (!history) return null;
+                        {/* Training Goal Toggle & AI Coaching */}
+                        <div className="mt-4 space-y-3">
+                            {/* Goal Toggle */}
+                            <div className="flex gap-2 p-1 bg-gray-100 dark:bg-white/5 rounded-xl">
+                                <button
+                                    onClick={() => setTrainingGoal('hypertrophy')}
+                                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${trainingGoal === 'hypertrophy'
+                                            ? 'bg-white dark:bg-white/20 text-gray-900 dark:text-white shadow-sm'
+                                            : 'text-gray-500 dark:text-gray-400'
+                                        }`}
+                                >
+                                    💪 Hypertrophy
+                                </button>
+                                <button
+                                    onClick={() => setTrainingGoal('strength')}
+                                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${trainingGoal === 'strength'
+                                            ? 'bg-white dark:bg-white/20 text-gray-900 dark:text-white shadow-sm'
+                                            : 'text-gray-500 dark:text-gray-400'
+                                        }`}
+                                >
+                                    🏋️ Strength
+                                </button>
+                            </div>
 
-                            const currentWeight = workout.exercises[activeExerciseIndex].sets[0]?.weight ?? 0;
-                            const weightIncrease = currentWeight > history.prWeight;
-                            const atPR = currentWeight >= history.prWeight && currentWeight > 0;
-                            const canTryMore = history.lastWeight > 0 && currentWeight <= history.lastWeight;
-
-                            return (
-                                <div className="mt-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl p-4 border border-blue-200/50 dark:border-blue-500/20">
-                                    <div className="flex items-start gap-3">
-                                        <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center shrink-0">
-                                            {atPR ? (
-                                                <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
-                                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                                                </svg>
-                                            ) : (
-                                                <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                                </svg>
-                                            )}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            {atPR ? (
-                                                <>
-                                                    <p className="text-sm font-semibold text-yellow-600 dark:text-yellow-400">
-                                                        🏆 PR Territory!
-                                                    </p>
-                                                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                                                        You&apos;re at or above your personal record. Push for a new best!
-                                                    </p>
-                                                </>
-                                            ) : canTryMore ? (
-                                                <>
-                                                    <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-                                                        💪 Last time: {history.lastWeight}kg × {history.lastReps} reps
-                                                    </p>
-                                                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                                                        Try adding 2.5kg to progress! Your PR is {history.prWeight}kg.
-                                                    </p>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-                                                        📊 Your PR: {history.prWeight}kg × {history.prReps} reps
-                                                    </p>
-                                                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                                                        Focus on form and full range of motion.
-                                                    </p>
-                                                </>
-                                            )}
-                                        </div>
+                            {/* AI Coaching Tip */}
+                            <div className={`bg-gradient-to-r ${trainingGoal === 'strength'
+                                    ? 'from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 border-orange-200/50 dark:border-orange-500/20'
+                                    : 'from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200/50 dark:border-blue-500/20'
+                                } rounded-2xl p-4 border`}>
+                                <div className="flex items-start gap-3">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${trainingGoal === 'strength'
+                                            ? 'bg-orange-100 dark:bg-orange-500/20'
+                                            : 'bg-blue-100 dark:bg-blue-500/20'
+                                        }`}>
+                                        {tipLoading ? (
+                                            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin opacity-50" />
+                                        ) : (
+                                            <svg className={`w-4 h-4 ${trainingGoal === 'strength' ? 'text-orange-500' : 'text-blue-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                            </svg>
+                                        )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${trainingGoal === 'strength' ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400'
+                                            }`}>
+                                            {trainingGoal === 'strength' ? '🏋️ Strength Focus' : '💪 Hypertrophy Focus'}
+                                        </p>
+                                        {tipLoading ? (
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 animate-pulse">
+                                                Generating tip...
+                                            </p>
+                                        ) : coachingTip ? (
+                                            <p className="text-sm text-gray-700 dark:text-gray-300">
+                                                {coachingTip}
+                                            </p>
+                                        ) : (
+                                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                                {trainingGoal === 'strength'
+                                                    ? 'Focus on explosive power and progressive overload.'
+                                                    : 'Control the tempo, feel the muscle work.'}
+                                            </p>
+                                        )}
+                                        {exerciseHistory[activeExercise.id] && (
+                                            <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                                                PR: {exerciseHistory[activeExercise.id].prWeight}kg × {exerciseHistory[activeExercise.id].prReps} reps
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
-                            );
-                        })()}
+                            </div>
+                        </div>
                     </>
                 ) : (
                     /* Exercise Completed State */
