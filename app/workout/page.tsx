@@ -161,13 +161,16 @@ function WorkoutContent() {
     const totalExercises = workout?.exercises.length ?? 0;
     const workoutComplete = completedExercises === totalExercises && totalExercises > 0;
 
-    // Sync reps and weight when current set changes
+    // Sync reps and weight when exercise or set changes
     useEffect(() => {
-        if (currentSetData) {
-            setCurrentReps(currentSetData.targetReps ?? 8);
-            setCurrentWeight(currentSetData.weight ?? 0);
+        if (activeExercise) {
+            const currentSet = activeExercise.sets[(activeExercise.currentSet ?? 1) - 1];
+            if (currentSet) {
+                setCurrentReps(currentSet.targetReps ?? 8);
+                setCurrentWeight(currentSet.weight ?? 0);
+            }
         }
-    }, [activeExerciseIndex, activeExercise?.currentSet, currentSetData]);
+    }, [activeExerciseIndex, activeExercise]);
 
     // Rest timer countdown effect
     useEffect(() => {
@@ -390,11 +393,9 @@ function WorkoutContent() {
                         if (diffX > 0 && activeExerciseIndex < workout.exercises.length - 1) {
                             // Swipe left - next exercise
                             setActiveExerciseIndex(activeExerciseIndex + 1);
-                            setCurrentWeight(workout.exercises[activeExerciseIndex + 1].sets[0]?.weight ?? 0);
                         } else if (diffX < 0 && activeExerciseIndex > 0) {
                             // Swipe right - previous exercise
                             setActiveExerciseIndex(activeExerciseIndex - 1);
-                            setCurrentWeight(workout.exercises[activeExerciseIndex - 1].sets[0]?.weight ?? 0);
                         }
                     }
                     setTouchStart(null);
@@ -409,7 +410,6 @@ function WorkoutContent() {
                             onClick={() => {
                                 if (activeExerciseIndex > 0) {
                                     setActiveExerciseIndex(activeExerciseIndex - 1);
-                                    setCurrentWeight(workout.exercises[activeExerciseIndex - 1].sets[0]?.weight ?? 0);
                                 }
                             }}
                             disabled={activeExerciseIndex === 0}
@@ -435,7 +435,6 @@ function WorkoutContent() {
                             onClick={() => {
                                 if (activeExerciseIndex < workout.exercises.length - 1) {
                                     setActiveExerciseIndex(activeExerciseIndex + 1);
-                                    setCurrentWeight(workout.exercises[activeExerciseIndex + 1].sets[0]?.weight ?? 0);
                                 }
                             }}
                             disabled={activeExerciseIndex === workout.exercises.length - 1}

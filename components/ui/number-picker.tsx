@@ -87,8 +87,10 @@ export function NumberWheel({
             const containerWidth = containerRef.current.offsetWidth;
             const paddingWidth = (containerWidth / 2) - (itemWidth / 2);
 
-            const idx = values.findIndex(v => v === value);
-            const targetIndex = centerOffset + (idx >= 0 ? idx : 0);
+            // Calculate index from value using min/step (stable props)
+            const valueIndex = Math.round((value - min) / step);
+            const clampedIndex = Math.max(0, Math.min(valueIndex, values.length - 1));
+            const targetIndex = centerOffset + clampedIndex;
             const targetScrollLeft = targetIndex * itemWidth - paddingWidth;
 
             // Smooth scroll to new position
@@ -98,7 +100,8 @@ export function NumberWheel({
             });
             setCenterIndex(targetIndex);
         }
-    }, [value, values, centerOffset, itemWidth]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [value, min, step, centerOffset, itemWidth]);
 
     const formatNumber = (n: number) => Number.isInteger(n) ? n.toString() : n.toFixed(1);
 
