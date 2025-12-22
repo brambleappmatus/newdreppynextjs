@@ -4,128 +4,80 @@ import { useState, useEffect, useRef } from 'react';
 
 interface TypewriterProps {
     text: string;
-    speed?: number;           // ms per character
-    deleteSpeed?: number;     // ms per character when deleting
+    speed?: number;
     className?: string;
-    onComplete?: () => void;
 }
 
-export function Typewriter({
-    text,
-    speed = 30,
-    deleteSpeed = 20,
-    className = '',
-    onComplete,
-}: TypewriterProps) {
+export function Typewriter({ text, speed = 20, className = '' }: TypewriterProps) {
     const [displayText, setDisplayText] = useState('');
-    const [isDeleting, setIsDeleting] = useState(false);
-    const previousTextRef = useRef(text);
-    const targetTextRef = useRef(text);
-    const isAnimatingRef = useRef(false);
+    const [showCursor, setShowCursor] = useState(true);
+    const prevTextRef = useRef('');
 
     useEffect(() => {
-        // If text hasn't changed, don't animate
-        if (text === previousTextRef.current && displayText === text) {
-            return;
-        }
+        // Text changed - animate
+        if (text === prevTextRef.current) return;
 
-        // New text received - start animation
-        targetTextRef.current = text;
+        const prevText = prevTextRef.current;
+        prevTextRef.current = text;
 
-        // If we have existing text, delete it first
-        if (displayText.length > 0 && text !== displayText) {
-            setIsDeleting(true);
-        }
-
-        previousTextRef.current = text;
-    }, [text, displayText]);
-
-    useEffect(() => {
-        if (isAnimatingRef.current) return;
-
-        let timeout: NodeJS.Timeout;
-
-        if (isDeleting) {
-            // Deleting animation (backspace effect)
-            if (displayText.length > 0) {
-                isAnimatingRef.current = true;
-                timeout = setTimeout(() => {
-                    setDisplayText(prev => prev.slice(0, -1));
-                    isAnimatingRef.current = false;
-                }, deleteSpeed);
-            } else {
-                // Done deleting, start typing
-                setIsDeleting(false);
-            }
+        // If we had text before, do a quick clear then type new
+        if (prevText.length > 0 && text !== prevText) {
+            // Quick backspace effect
+            let deleteIndex = prevText.length;
+            const deleteInterval = setInterval(() => {
+                deleteIndex--;
+                if (deleteIndex <= 0) {
+                    clearInterval(deleteInterval);
+                    setDisplayText('');
+                    // Now type the new text
+                    typeText(text);
+                } else {
+                    setDisplayText(prevText.slice(0, deleteIndex));
+                }
+            }, 15);
+            return () => clearInterval(deleteInterval);
         } else {
-            // Typing animation
-            const target = targetTextRef.current;
-            if (displayText.length < target.length) {
-                isAnimatingRef.current = true;
-                timeout = setTimeout(() => {
-                    setDisplayText(target.slice(0, displayText.length + 1));
-                    isAnimatingRef.current = false;
-                }, speed);
-            } else if (displayText === target && onComplete) {
-                onComplete();
-            }
+            // Just type new text
+            typeText(text);
         }
 
-        return () => clearTimeout(timeout);
-    }, [displayText, isDeleting, speed, deleteSpeed, onComplete]);
+        function typeText(targetText: string) {
+            let i = 0;
+            setShowCursor(true);
+            const typeInterval = setInterval(() => {
+                if (i < targetText.length) {
+                    setDisplayText(targetText.slice(0, i + 1));
+                    i++;
+                } else {
+                    clearInterval(typeInterval);
+                    setTimeout(() => setShowCursor(false), 500);
+                }
+            }, speed);
+        }
+    }, [text, speed]);
 
-    // Initial mount - type out the initial text
+    // Initial render - show empty with cursor
     useEffect(() => {
-        if (displayText === '' && text) {
-            targetTextRef.current = text;
+        if (text && displayText === '') {
+            let i = 0;
+            const typeInterval = setInterval(() => {
+                if (i < text.length) {
+                    setDisplayText(text.slice(0, i + 1));
+                    i++;
+                } else {
+                    clearInterval(typeInterval);
+                    setTimeout(() => setShowCursor(false), 500);
+                }
+            }, speed);
+            prevTextRef.current = text;
+            return () => clearInterval(typeInterval);
         }
     }, []);
 
     return (
         <span className={className}>
             {displayText}
-            <span className="animate-pulse">|</span>
-        </span>
-    );
-}
-
-// Simpler version that just types (no delete), for initial display
-export function TypewriterSimple({
-    text,
-    speed = 25,
-    className = '',
-    showCursor = true,
-}: {
-    text: string;
-    speed?: number;
-    className?: string;
-    showCursor?: boolean;
-}) {
-    const [displayText, setDisplayText] = useState('');
-    const [isComplete, setIsComplete] = useState(false);
-
-    useEffect(() => {
-        setDisplayText('');
-        setIsComplete(false);
-
-        let index = 0;
-        const interval = setInterval(() => {
-            if (index < text.length) {
-                setDisplayText(text.slice(0, index + 1));
-                index++;
-            } else {
-                setIsComplete(true);
-                clearInterval(interval);
-            }
-        }, speed);
-
-        return () => clearInterval(interval);
-    }, [text, speed]);
-
-    return (
-        <span className={className}>
-            {displayText}
-            {showCursor && !isComplete && <span className="animate-pulse">|</span>}
+            {showCursor && <span className="animate-pulse text-gray-400">|</span>}
         </span>
     );
 }

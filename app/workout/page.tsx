@@ -87,11 +87,9 @@ function WorkoutContent() {
 
     // Advanced coaching context
     const [workoutStartTime] = useState<number>(Date.now());
-    const [tipMode, setTipMode] = useState<'quick' | 'form' | 'motivation'>('quick');
     const [showStatsOnly, setShowStatsOnly] = useState(false);
     const [tipFeedback, setTipFeedback] = useState<'up' | 'down' | null>(null);
     const tipCacheRef = useRef<Map<string, string>>(new Map());
-    const lastTipRequestRef = useRef<{ weight: number; reps: number } | null>(null);
 
     // Fetch workout data based on program ID
     useEffect(() => {
@@ -269,12 +267,12 @@ function WorkoutContent() {
         return () => clearInterval(timer);
     }, [showRestTimer, restEndTime]);
 
-    // Fetch AI coaching tip with smart timing, caching, and enhanced context
+    // Fetch AI coaching tip with smart timing and caching
     useEffect(() => {
         const fetchCoachingTip = async () => {
             if (!activeExercise || !workout) return;
 
-            const cacheKey = `${activeExercise.id}-${currentWeight}-${currentReps}-${tipMode}`;
+            const cacheKey = `${activeExercise.id}-${currentWeight}-${currentReps}`;
 
             // Check cache first (unless resting - always get fresh tip for rest)
             if (!showRestTimer && tipCacheRef.current.has(cacheKey)) {
@@ -283,8 +281,8 @@ function WorkoutContent() {
                 return;
             }
 
-            // Smart silence - 20% chance to show stats only (not during rest)
-            if (!showRestTimer && Math.random() < 0.2) {
+            // Smart silence - 15% chance to show stats only (not during rest)
+            if (!showRestTimer && Math.random() < 0.15) {
                 setShowStatsOnly(true);
                 setTipLoading(false);
                 return;
@@ -310,34 +308,30 @@ function WorkoutContent() {
                     body: JSON.stringify({
                         exerciseName: activeExercise.name,
                         muscleGroup: activeExercise.muscleGroup,
-                        currentWeight: currentWeight,
-                        currentReps: currentReps,
+                        currentWeight,
+                        currentReps,
                         lastWeight: history?.lastWeight ?? 0,
                         lastReps: history?.lastReps ?? 0,
                         prWeight: history?.prWeight ?? 0,
                         prReps: history?.prReps ?? 0,
                         trainingGoal,
-                        // Previous context for conversational coaching
                         previousTip: previousTipContext?.tip,
                         previousWeight: previousTipContext?.weight,
                         previousReps: previousTipContext?.reps,
-                        // Rest/set context
                         isResting: showRestTimer,
-                        restTimeLeft: restTimeLeft,
+                        restTimeLeft,
                         currentSet: activeExercise.currentSet,
                         totalSets: activeExercise.sets.length,
                         lastSetDifficulty: lastCompletedSetDifficulty,
-                        // Enhanced context
                         timeOfDay,
                         workoutDuration,
                         totalSetsCompleted,
-                        tipMode,
                     }),
                 });
                 const data = await response.json();
                 const newTip = data.tip || '';
                 setCoachingTip(newTip);
-                setTipFeedback(null); // Reset feedback for new tip
+                setTipFeedback(null);
 
                 // Cache the tip (not for rest period tips)
                 if (!showRestTimer) {
@@ -348,9 +342,6 @@ function WorkoutContent() {
                         reps: currentReps,
                     });
                 }
-
-                // Track what we requested (for cache validation)
-                lastTipRequestRef.current = { weight: currentWeight, reps: currentReps };
             } catch (error) {
                 console.error('Failed to fetch coaching tip:', error);
                 setCoachingTip('');
@@ -362,7 +353,7 @@ function WorkoutContent() {
         const timer = setTimeout(fetchCoachingTip, showRestTimer ? 300 : 2000);
         return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeExerciseIndex, activeExercise, trainingGoal, exerciseHistory, currentWeight, currentReps, showRestTimer, tipMode]);
+    }, [activeExerciseIndex, activeExercise, trainingGoal, exerciseHistory, currentWeight, currentReps, showRestTimer]);
 
     // Loading state
     if (loading) {
@@ -853,79 +844,48 @@ function WorkoutContent() {
 
                         {/* Training Goal Toggle & AI Coaching */}
                         <div className="mt-4 space-y-3">
-                            {/* Goal + Mode Toggle Row */}
-                            <div className="flex gap-2">
-                                {/* Goal Toggle */}
-                                <div className="flex-1 flex gap-1 p-1 bg-gray-100 dark:bg-white/5 rounded-xl">
-                                    <button
-                                        onClick={() => setTrainingGoal('hypertrophy')}
-                                        className={`flex-1 py-2 px-2 rounded-lg text-xs font-semibold transition-all ${trainingGoal === 'hypertrophy'
-                                            ? 'bg-white dark:bg-white/20 text-gray-900 dark:text-white shadow-sm'
-                                            : 'text-gray-500 dark:text-gray-400'
-                                            }`}
-                                    >
-                                        💪 Hyper
-                                    </button>
-                                    <button
-                                        onClick={() => setTrainingGoal('strength')}
-                                        className={`flex-1 py-2 px-2 rounded-lg text-xs font-semibold transition-all ${trainingGoal === 'strength'
-                                            ? 'bg-white dark:bg-white/20 text-gray-900 dark:text-white shadow-sm'
-                                            : 'text-gray-500 dark:text-gray-400'
-                                            }`}
-                                    >
-                                        🏋️ Str
-                                    </button>
-                                </div>
-                                {/* Tip Mode Toggle */}
-                                <div className="flex gap-1 p-1 bg-gray-100 dark:bg-white/5 rounded-xl">
-                                    {(['quick', 'form', 'motivation'] as const).map((mode) => (
-                                        <button
-                                            key={mode}
-                                            onClick={() => {
-                                                setTipMode(mode);
-                                                tipCacheRef.current.clear(); // Clear cache on mode change
-                                            }}
-                                            className={`py-2 px-2 rounded-lg text-xs font-medium transition-all ${tipMode === mode
-                                                ? 'bg-white dark:bg-white/20 text-gray-900 dark:text-white shadow-sm'
-                                                : 'text-gray-400 dark:text-gray-500'
-                                                }`}
-                                        >
-                                            {mode === 'quick' ? '⚡' : mode === 'form' ? '🎯' : '🔥'}
-                                        </button>
-                                    ))}
-                                </div>
+                            {/* Goal Toggle */}
+                            <div className="flex gap-2 p-1 bg-gray-100 dark:bg-white/5 rounded-xl">
+                                <button
+                                    onClick={() => setTrainingGoal('hypertrophy')}
+                                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${trainingGoal === 'hypertrophy'
+                                        ? 'bg-white dark:bg-white/20 text-gray-900 dark:text-white shadow-sm'
+                                        : 'text-gray-500 dark:text-gray-400'
+                                        }`}
+                                >
+                                    💪 Hypertrophy
+                                </button>
+                                <button
+                                    onClick={() => setTrainingGoal('strength')}
+                                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${trainingGoal === 'strength'
+                                        ? 'bg-white dark:bg-white/20 text-gray-900 dark:text-white shadow-sm'
+                                        : 'text-gray-500 dark:text-gray-400'
+                                        }`}
+                                >
+                                    🏋️ Strength
+                                </button>
                             </div>
 
                             {/* AI Coaching Tip Card */}
-                            <div className={`bg-gradient-to-r ${tipMode === 'motivation'
-                                    ? 'from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border-yellow-200/50 dark:border-yellow-500/20'
-                                    : tipMode === 'form'
-                                        ? 'from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200/50 dark:border-green-500/20'
-                                        : trainingGoal === 'strength'
-                                            ? 'from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 border-orange-200/50 dark:border-orange-500/20'
-                                            : 'from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200/50 dark:border-blue-500/20'
+                            <div className={`bg-gradient-to-r ${trainingGoal === 'strength'
+                                ? 'from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 border-orange-200/50 dark:border-orange-500/20'
+                                : 'from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200/50 dark:border-blue-500/20'
                                 } rounded-2xl p-4 border`}>
                                 <div className="flex items-start gap-3">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${tipMode === 'motivation' ? 'bg-yellow-100 dark:bg-yellow-500/20' :
-                                            tipMode === 'form' ? 'bg-green-100 dark:bg-green-500/20' :
-                                                trainingGoal === 'strength' ? 'bg-orange-100 dark:bg-orange-500/20' :
-                                                    'bg-blue-100 dark:bg-blue-500/20'
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${trainingGoal === 'strength' ? 'bg-orange-100 dark:bg-orange-500/20' : 'bg-blue-100 dark:bg-blue-500/20'
                                         }`}>
-                                        <span className="text-sm">
-                                            {tipMode === 'quick' ? '⚡' : tipMode === 'form' ? '🎯' : '🔥'}
-                                        </span>
+                                        <svg className={`w-4 h-4 ${trainingGoal === 'strength' ? 'text-orange-500' : 'text-blue-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                        </svg>
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${tipMode === 'motivation' ? 'text-yellow-600 dark:text-yellow-400' :
-                                                tipMode === 'form' ? 'text-green-600 dark:text-green-400' :
-                                                    trainingGoal === 'strength' ? 'text-orange-600 dark:text-orange-400' :
-                                                        'text-blue-600 dark:text-blue-400'
+                                        <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${trainingGoal === 'strength' ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400'
                                             }`}>
-                                            {tipMode === 'quick' ? '⚡ Quick Tip' : tipMode === 'form' ? '🎯 Form Focus' : '🔥 Motivation'}
+                                            {trainingGoal === 'strength' ? '🏋️ Coach' : '💪 Coach'}
                                         </p>
                                         {showStatsOnly ? (
                                             <p className="text-sm text-gray-700 dark:text-gray-300">
-                                                💪 No tip needed - you know what to do!
+                                                You know what to do! 💪
                                                 {exerciseHistory[activeExercise.id] && (
                                                     <span className="block text-xs text-gray-500 mt-1">
                                                         PR: {exerciseHistory[activeExercise.id].prWeight}kg × {exerciseHistory[activeExercise.id].prReps}
@@ -935,14 +895,13 @@ function WorkoutContent() {
                                         ) : tipLoading ? (
                                             <p className="text-sm text-gray-500 dark:text-gray-400">
                                                 <span className="inline-block animate-pulse">●</span>
-                                                <span className="inline-block animate-pulse animation-delay-100">●</span>
-                                                <span className="inline-block animate-pulse animation-delay-200">●</span>
+                                                <span className="inline-block animate-pulse" style={{ animationDelay: '0.1s' }}>●</span>
+                                                <span className="inline-block animate-pulse" style={{ animationDelay: '0.2s' }}>●</span>
                                             </p>
                                         ) : coachingTip ? (
                                             <Typewriter
                                                 text={coachingTip}
-                                                speed={25}
-                                                deleteSpeed={15}
+                                                speed={20}
                                                 className="text-sm text-gray-700 dark:text-gray-300"
                                             />
                                         ) : (
@@ -952,30 +911,20 @@ function WorkoutContent() {
                                                     : 'Control the tempo, feel the muscle.'}
                                             </p>
                                         )}
+                                        {exerciseHistory[activeExercise.id] && !showStatsOnly && (
+                                            <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                                                PR: {exerciseHistory[activeExercise.id].prWeight}kg × {exerciseHistory[activeExercise.id].prReps}
+                                            </p>
+                                        )}
                                     </div>
                                     {/* Feedback Buttons */}
                                     {coachingTip && !tipLoading && !showStatsOnly && (
                                         <div className="flex flex-col gap-1">
                                             <button
-                                                onClick={async () => {
-                                                    setTipFeedback('up');
-                                                    // Save feedback to DB
-                                                    try {
-                                                        const { data: { user } } = await supabase.auth.getUser();
-                                                        if (user) {
-                                                            await supabase.from('tip_feedback').insert({
-                                                                user_id: user.id,
-                                                                tip_text: coachingTip,
-                                                                exercise_name: activeExercise.name,
-                                                                tip_mode: tipMode,
-                                                                is_helpful: true,
-                                                            });
-                                                        }
-                                                    } catch (e) { console.log('Feedback save failed'); }
-                                                }}
+                                                onClick={() => setTipFeedback('up')}
                                                 className={`p-1.5 rounded-lg transition-all ${tipFeedback === 'up'
-                                                        ? 'bg-green-100 dark:bg-green-500/30 text-green-600'
-                                                        : 'text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-500/10'
+                                                    ? 'bg-green-100 dark:bg-green-500/30 text-green-600'
+                                                    : 'text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-500/10'
                                                     }`}
                                             >
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -983,24 +932,10 @@ function WorkoutContent() {
                                                 </svg>
                                             </button>
                                             <button
-                                                onClick={async () => {
-                                                    setTipFeedback('down');
-                                                    try {
-                                                        const { data: { user } } = await supabase.auth.getUser();
-                                                        if (user) {
-                                                            await supabase.from('tip_feedback').insert({
-                                                                user_id: user.id,
-                                                                tip_text: coachingTip,
-                                                                exercise_name: activeExercise.name,
-                                                                tip_mode: tipMode,
-                                                                is_helpful: false,
-                                                            });
-                                                        }
-                                                    } catch (e) { console.log('Feedback save failed'); }
-                                                }}
+                                                onClick={() => setTipFeedback('down')}
                                                 className={`p-1.5 rounded-lg transition-all ${tipFeedback === 'down'
-                                                        ? 'bg-red-100 dark:bg-red-500/30 text-red-600'
-                                                        : 'text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10'
+                                                    ? 'bg-red-100 dark:bg-red-500/30 text-red-600'
+                                                    : 'text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10'
                                                     }`}
                                             >
                                                 <svg className="w-4 h-4 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
