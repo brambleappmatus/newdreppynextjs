@@ -72,6 +72,7 @@ export function Typewriter({ text, speed = 20, className = '' }: TypewriterProps
             prevTextRef.current = text;
             return () => clearInterval(typeInterval);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     return (

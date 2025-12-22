@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 
 interface HorizontalPickerProps {
     value: number;
@@ -18,7 +18,7 @@ export function NumberWheel({
     min = 0,
     max = 100,
     step = 1,
-    unit = '',
+    unit: _unit = '',
     label,
 }: HorizontalPickerProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -29,14 +29,17 @@ export function NumberWheel({
     const isUserScrolling = useRef(false);
     const lastExternalValue = useRef(value);
 
-    // Generate values array
-    const values: number[] = [];
-    for (let i = min; i <= max; i += step) {
-        values.push(i);
-    }
+    // Generate values array with useMemo to avoid recreation on every render
+    const values = useMemo(() => {
+        const arr: number[] = [];
+        for (let i = min; i <= max; i += step) {
+            arr.push(i);
+        }
+        return arr;
+    }, [min, max, step]);
 
     // Triple values for infinite scroll
-    const tripleValues = [...values, ...values, ...values];
+    const tripleValues = useMemo(() => [...values, ...values, ...values], [values]);
     const centerOffset = values.length;
 
     // Calculate which index is in the center

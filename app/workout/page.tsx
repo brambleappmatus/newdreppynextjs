@@ -143,9 +143,10 @@ function WorkoutContent() {
             }
 
             // Fetch user's exercise history if logged in
-            let history: Record<string, { lastWeight: number; lastReps: number; prWeight: number; prReps: number }> = {};
+            const history: Record<string, { lastWeight: number; lastReps: number; prWeight: number; prReps: number }> = {};
 
             if (user) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const exerciseIds = templateExercises.map((te: any) => te.exercises.id);
 
                 // Get recent completed sets for these exercises
@@ -163,6 +164,7 @@ function WorkoutContent() {
 
                 if (recentSets && recentSets.length > 0) {
                     // Process history for each exercise
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     recentSets.forEach((set: any) => {
                         const exerciseId = set.session_exercises?.exercise_id || set.session_exercises?.exercises?.id;
                         if (!exerciseId || !exerciseIds.includes(exerciseId)) return;
@@ -176,9 +178,9 @@ function WorkoutContent() {
                             };
                         } else {
                             // Update PR if this is heavier
-                            if (set.weight > history[exerciseId].prWeight) {
-                                history[exerciseId].prWeight = set.weight;
-                                history[exerciseId].prReps = set.reps;
+                            if ((set.weight || 0) > history[exerciseId].prWeight) {
+                                history[exerciseId].prWeight = set.weight || 0;
+                                history[exerciseId].prReps = set.reps || 0;
                             }
                         }
                     });
@@ -188,6 +190,7 @@ function WorkoutContent() {
             setExerciseHistory(history);
 
             // Convert to workout format with pre-filled weights from history
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const workoutExercises: WorkoutExercise[] = templateExercises.map((te: any) => {
                 const exercise = te.exercises;
                 const lastWeight = history[exercise.id]?.lastWeight || 0;
@@ -207,6 +210,7 @@ function WorkoutContent() {
                     sets,
                 };
             });
+
 
             setWorkout({
                 id: template.id,
@@ -551,7 +555,7 @@ function WorkoutContent() {
         setShowSubstitutes(false);
     };
 
-    const moveExercise = (direction: 'up' | 'down') => {
+    const _moveExercise = (direction: 'up' | 'down') => {
         if (!workout) return;
         const toIndex = direction === 'up' ? activeExerciseIndex - 1 : activeExerciseIndex + 1;
         if (toIndex < 0 || toIndex >= workout.exercises.length) return;
@@ -566,7 +570,7 @@ function WorkoutContent() {
         setActiveExerciseIndex(toIndex);
     };
 
-    const adjustWeight = (delta: number) => {
+    const _adjustWeight = (delta: number) => {
         setCurrentWeight(prev => Math.max(0, prev + delta));
     };
 
