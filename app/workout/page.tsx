@@ -73,7 +73,7 @@ function WorkoutContent() {
     const [chatLoading, setChatLoading] = useState(false);
     const [showAllSets, setShowAllSets] = useState(false);
     const [selectedDifficulty, setSelectedDifficulty] = useState<'easy' | 'normal' | 'hard'>('normal');
-    const [touchStart, setTouchStart] = useState<number | null>(null);
+    const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
 
     // Fetch workout data based on program ID
     useEffect(() => {
@@ -376,17 +376,22 @@ function WorkoutContent() {
             {/* Main Content with Swipe Detection */}
             <div
                 className="flex-1 flex flex-col p-4 max-w-2xl mx-auto w-full overflow-y-auto pb-28"
-                onTouchStart={(e) => setTouchStart(e.touches[0].clientX)}
+                onTouchStart={(e) => setTouchStart({ x: e.touches[0].clientX, y: e.touches[0].clientY })}
                 onTouchEnd={(e) => {
                     if (touchStart === null) return;
-                    const touchEnd = e.changedTouches[0].clientX;
-                    const diff = touchStart - touchEnd;
-                    if (Math.abs(diff) > 80) {
-                        if (diff > 0 && activeExerciseIndex < workout.exercises.length - 1) {
+                    const touchEndX = e.changedTouches[0].clientX;
+                    const touchEndY = e.changedTouches[0].clientY;
+                    const diffX = touchStart.x - touchEndX;
+                    const diffY = Math.abs(touchStart.y - touchEndY);
+
+                    // Only trigger horizontal swipe if horizontal movement > vertical movement
+                    // and horizontal movement is significant (>80px)
+                    if (Math.abs(diffX) > 80 && Math.abs(diffX) > diffY * 1.5) {
+                        if (diffX > 0 && activeExerciseIndex < workout.exercises.length - 1) {
                             // Swipe left - next exercise
                             setActiveExerciseIndex(activeExerciseIndex + 1);
                             setCurrentWeight(workout.exercises[activeExerciseIndex + 1].sets[0]?.weight ?? 0);
-                        } else if (diff < 0 && activeExerciseIndex > 0) {
+                        } else if (diffX < 0 && activeExerciseIndex > 0) {
                             // Swipe right - previous exercise
                             setActiveExerciseIndex(activeExerciseIndex - 1);
                             setCurrentWeight(workout.exercises[activeExerciseIndex - 1].sets[0]?.weight ?? 0);

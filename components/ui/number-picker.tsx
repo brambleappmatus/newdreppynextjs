@@ -113,7 +113,10 @@ export function NumberWheel({
                 <div
                     ref={scrollRef}
                     onScroll={handleScroll}
-                    className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory"
+                    onTouchStart={(e) => e.stopPropagation()}
+                    onTouchMove={(e) => e.stopPropagation()}
+                    onTouchEnd={(e) => e.stopPropagation()}
+                    className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory touch-pan-x"
                     style={{
                         WebkitOverflowScrolling: 'touch',
                         scrollSnapType: 'x mandatory',
