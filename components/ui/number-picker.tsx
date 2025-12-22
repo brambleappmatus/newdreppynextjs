@@ -81,7 +81,7 @@ export function NumberWheel({
         }, 200);
     }, [calculateCenterIndex, getValueFromIndex, onChange, values, centerOffset, itemWidth]);
 
-    // Initial positioning
+    // Position picker when value changes (initial + when switching exercises)
     useEffect(() => {
         if (scrollRef.current && containerRef.current) {
             const containerWidth = containerRef.current.offsetWidth;
@@ -89,10 +89,16 @@ export function NumberWheel({
 
             const idx = values.findIndex(v => v === value);
             const targetIndex = centerOffset + (idx >= 0 ? idx : 0);
-            scrollRef.current.scrollLeft = targetIndex * itemWidth - paddingWidth;
+            const targetScrollLeft = targetIndex * itemWidth - paddingWidth;
+
+            // Smooth scroll to new position
+            scrollRef.current.scrollTo({
+                left: targetScrollLeft,
+                behavior: 'smooth'
+            });
             setCenterIndex(targetIndex);
         }
-    }, []);
+    }, [value, values, centerOffset, itemWidth]);
 
     const formatNumber = (n: number) => Number.isInteger(n) ? n.toString() : n.toFixed(1);
 
