@@ -336,12 +336,8 @@ function WorkoutContent() {
                 // Cache the tip (not for rest period tips)
                 if (!showRestTimer) {
                     tipCacheRef.current.set(cacheKey, newTip);
-                    setPreviousTipContext({
-                        tip: newTip,
-                        weight: currentWeight,
-                        reps: currentReps,
-                    });
                 }
+                // Note: previousTipContext is only updated on set complete, not on weight scroll
             } catch (error) {
                 console.error('Failed to fetch coaching tip:', error);
                 setCoachingTip('');
@@ -508,6 +504,15 @@ function WorkoutContent() {
 
         // Save the difficulty of this set before resetting
         setLastCompletedSetDifficulty(selectedDifficulty);
+
+        // Update previous tip context with the COMPLETED weight/reps
+        // This way AI only says "you hit X weight" after you actually complete the set
+        setPreviousTipContext({
+            tip: coachingTip,
+            weight: currentWeight,
+            reps: currentReps,
+        });
+
         setSelectedDifficulty('normal');
 
         // Start rest timer with end timestamp (works when phone is locked)
