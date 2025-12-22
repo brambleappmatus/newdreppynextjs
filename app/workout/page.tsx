@@ -76,6 +76,7 @@ function WorkoutContent() {
     const [selectedDifficulty, setSelectedDifficulty] = useState<'easy' | 'normal' | 'hard'>('normal');
     const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
     const [showEndConfirm, setShowEndConfirm] = useState(false);
+    const [exerciseHistory, setExerciseHistory] = useState<Record<string, { lastWeight: number; lastReps: number; prWeight: number; prReps: number }>>({});
 
     // Fetch workout data based on program ID
     useEffect(() => {
@@ -84,6 +85,9 @@ function WorkoutContent() {
                 setLoading(false);
                 return;
             }
+
+            // Get current user
+            const { data: { user } } = await supabase.auth.getUser();
 
             // Fetch the template
             const { data: template } = await supabase
@@ -120,13 +124,59 @@ function WorkoutContent() {
                 return;
             }
 
-            // Convert to workout format
+            // Fetch user's exercise history if logged in
+            let history: Record<string, { lastWeight: number; lastReps: number; prWeight: number; prReps: number }> = {};
+
+            if (user) {
+                const exerciseIds = templateExercises.map((te: any) => te.exercises.id);
+
+                // Get recent completed sets for these exercises
+                const { data: recentSets } = await supabase
+                    .from('completed_sets')
+                    .select(`
+                        reps, weight, created_at,
+                        session_exercises!inner (
+                            exercise_id,
+                            exercises!inner (id)
+                        )
+                    `)
+                    .order('created_at', { ascending: false })
+                    .limit(200);
+
+                if (recentSets && recentSets.length > 0) {
+                    // Process history for each exercise
+                    recentSets.forEach((set: any) => {
+                        const exerciseId = set.session_exercises?.exercise_id || set.session_exercises?.exercises?.id;
+                        if (!exerciseId || !exerciseIds.includes(exerciseId)) return;
+
+                        if (!history[exerciseId]) {
+                            history[exerciseId] = {
+                                lastWeight: set.weight || 0,
+                                lastReps: set.reps || 0,
+                                prWeight: set.weight || 0,
+                                prReps: set.reps || 0,
+                            };
+                        } else {
+                            // Update PR if this is heavier
+                            if (set.weight > history[exerciseId].prWeight) {
+                                history[exerciseId].prWeight = set.weight;
+                                history[exerciseId].prReps = set.reps;
+                            }
+                        }
+                    });
+                }
+            }
+
+            setExerciseHistory(history);
+
+            // Convert to workout format with pre-filled weights from history
             const workoutExercises: WorkoutExercise[] = templateExercises.map((te: any) => {
                 const exercise = te.exercises;
+                const lastWeight = history[exercise.id]?.lastWeight || 0;
                 const sets: WorkoutSet[] = Array.from({ length: te.target_sets || 3 }, (_, i) => ({
                     setNumber: i + 1,
                     targetReps: te.target_reps || 10,
-                    weight: 0, // TODO: Get from previous workout history
+                    weight: lastWeight, // Pre-fill with last workout's weight
                     completed: false,
                 }));
 
@@ -597,6 +647,65 @@ function WorkoutContent() {
                         >
                             View All Sets
                         </button>
+
+                        {/* Progress & Coaching Tips */}
+                        {(() => {
+                            const history = exerciseHistory[activeExercise.id];
+                            if (!history) return null;
+
+                            const currentWeight = workout.exercises[activeExerciseIndex].sets[0]?.weight ?? 0;
+                            const weightIncrease = currentWeight > history.prWeight;
+                            const atPR = currentWeight >= history.prWeight && currentWeight > 0;
+                            const canTryMore = history.lastWeight > 0 && currentWeight <= history.lastWeight;
+
+                            return (
+                                <div className="mt-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl p-4 border border-blue-200/50 dark:border-blue-500/20">
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center shrink-0">
+                                            {atPR ? (
+                                                <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
+                                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                                                </svg>
+                                            ) : (
+                                                <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                                </svg>
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            {atPR ? (
+                                                <>
+                                                    <p className="text-sm font-semibold text-yellow-600 dark:text-yellow-400">
+                                                        🏆 PR Territory!
+                                                    </p>
+                                                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                                                        You&apos;re at or above your personal record. Push for a new best!
+                                                    </p>
+                                                </>
+                                            ) : canTryMore ? (
+                                                <>
+                                                    <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                                                        💪 Last time: {history.lastWeight}kg × {history.lastReps} reps
+                                                    </p>
+                                                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                                                        Try adding 2.5kg to progress! Your PR is {history.prWeight}kg.
+                                                    </p>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                                                        📊 Your PR: {history.prWeight}kg × {history.prReps} reps
+                                                    </p>
+                                                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                                                        Focus on form and full range of motion.
+                                                    </p>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </>
                 ) : (
                     /* Exercise Completed State */
