@@ -94,12 +94,22 @@ Acknowledge their adjustment positively if they followed your advice! Be encoura
             }
         }
 
+        // Build difficulty context for non-rest scenarios
+        let difficultyContext = '';
+        if (lastSetDifficulty && !isResting && currentSet && currentSet > 1) {
+            difficultyContext = `
+Previous set felt: ${lastSetDifficulty.toUpperCase()}
+${lastSetDifficulty === 'easy' ? '- They might be ready to increase weight or push harder' : ''}
+${lastSetDifficulty === 'hard' ? '- They might need to maintain or slightly reduce - focus on form' : ''}`;
+        }
+
         const prompt = `You are a concise, encouraging workout coach. Give ONE short tip (max 18 words) for this moment.
 
 Exercise: ${exerciseName} (${muscleGroup})
 ${goalContext}
 ${historyContext}
 ${currentContext}
+${difficultyContext}
 ${restContext}
 ${conversationContext}
 
@@ -113,6 +123,9 @@ ${isResting ? `
 ` : `
 - If user followed your previous advice (increased weight/reps), acknowledge it positively!
 - If at or above PR, be extra encouraging
+- Consider how their last set felt (easy/normal/hard) if mentioned
+- If last set was hard, be supportive and suggest good form over pushing harder
+- If last set was easy, encourage adding weight or more intensity
 - For strength: encourage power, explosive movement
 - For hypertrophy: encourage control, squeeze, mind-muscle connection
 `}

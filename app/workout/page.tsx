@@ -82,6 +82,7 @@ function WorkoutContent() {
     const [coachingTip, setCoachingTip] = useState<string>('');
     const [tipLoading, setTipLoading] = useState(false);
     const [previousTipContext, setPreviousTipContext] = useState<{ tip: string; weight: number; reps: number } | null>(null);
+    const [lastCompletedSetDifficulty, setLastCompletedSetDifficulty] = useState<'easy' | 'normal' | 'hard' | null>(null);
 
     // Fetch workout data based on program ID
     useEffect(() => {
@@ -290,7 +291,7 @@ function WorkoutContent() {
                         restTimeLeft: restTimeLeft,
                         currentSet: activeExercise.currentSet,
                         totalSets: activeExercise.sets.length,
-                        lastSetDifficulty: selectedDifficulty,
+                        lastSetDifficulty: lastCompletedSetDifficulty,
                     }),
                 });
                 const data = await response.json();
@@ -469,6 +470,8 @@ function WorkoutContent() {
             setCurrentWeight(nextExercise.sets[0]?.weight ?? 0);
         }
 
+        // Save the difficulty of this set before resetting
+        setLastCompletedSetDifficulty(selectedDifficulty);
         setSelectedDifficulty('normal');
 
         // Start rest timer with end timestamp (works when phone is locked)
