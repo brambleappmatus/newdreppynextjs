@@ -67,6 +67,7 @@ function WorkoutContent() {
     const [showRestTimer, setShowRestTimer] = useState(false);
     const [restTimeLeft, setRestTimeLeft] = useState(0);
     const [restTimeTotal, setRestTimeTotal] = useState(0);
+    const [restEndTime, setRestEndTime] = useState<number | null>(null); // Timestamp when rest ends
     const [showSubstitutes, setShowSubstitutes] = useState(false);
     const [showAIChat, setShowAIChat] = useState(false);
     const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([]);
@@ -233,21 +234,32 @@ function WorkoutContent() {
         }
     }, [activeExerciseIndex, activeExercise]);
 
-    // Rest timer countdown effect
+    // Rest timer countdown effect - uses timestamps to work when phone is locked
     useEffect(() => {
-        if (!showRestTimer || restTimeLeft <= 0) {
-            if (showRestTimer && restTimeLeft <= 0) {
-                setShowRestTimer(false);
-            }
+        if (!showRestTimer || !restEndTime) {
             return;
         }
-        const timer = setInterval(() => {
-            setRestTimeLeft(prev => prev - 1);
-        }, 1000);
-        return () => clearInterval(timer);
-    }, [showRestTimer, restTimeLeft]);
 
-    // Fetch AI coaching tip when exercise or weight/reps changes
+        const updateTimer = () => {
+            const now = Date.now();
+            const remaining = Math.max(0, Math.ceil((restEndTime - now) / 1000));
+            setRestTimeLeft(remaining);
+
+            if (remaining <= 0) {
+                setShowRestTimer(false);
+                setRestEndTime(null);
+            }
+        };
+
+        // Update immediately (catches up after phone unlock)
+        updateTimer();
+
+        // Then update every second
+        const timer = setInterval(updateTimer, 1000);
+        return () => clearInterval(timer);
+    }, [showRestTimer, restEndTime]);
+
+    // Fetch AI coaching tip when exercise, weight/reps, or rest state changes
     useEffect(() => {
         const fetchCoachingTip = async () => {
             if (!activeExercise) return;
@@ -273,18 +285,26 @@ function WorkoutContent() {
                         previousTip: previousTipContext?.tip,
                         previousWeight: previousTipContext?.weight,
                         previousReps: previousTipContext?.reps,
+                        // Rest/set context
+                        isResting: showRestTimer,
+                        restTimeLeft: restTimeLeft,
+                        currentSet: activeExercise.currentSet,
+                        totalSets: activeExercise.sets.length,
+                        lastSetDifficulty: selectedDifficulty,
                     }),
                 });
                 const data = await response.json();
                 const newTip = data.tip || '';
                 setCoachingTip(newTip);
 
-                // Save current context for next interaction
-                setPreviousTipContext({
-                    tip: newTip,
-                    weight: currentWeight,
-                    reps: currentReps,
-                });
+                // Save current context for next interaction (only when not resting)
+                if (!showRestTimer) {
+                    setPreviousTipContext({
+                        tip: newTip,
+                        weight: currentWeight,
+                        reps: currentReps,
+                    });
+                }
             } catch (error) {
                 console.error('Failed to fetch coaching tip:', error);
                 setCoachingTip('');
@@ -292,11 +312,11 @@ function WorkoutContent() {
             setTipLoading(false);
         };
 
-        // Debounce the API call (longer debounce for weight/rep changes)
-        const timer = setTimeout(fetchCoachingTip, 800);
+        // Debounce the API call
+        const timer = setTimeout(fetchCoachingTip, showRestTimer ? 300 : 800);
         return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeExerciseIndex, activeExercise, trainingGoal, exerciseHistory, currentWeight, currentReps]);
+    }, [activeExerciseIndex, activeExercise, trainingGoal, exerciseHistory, currentWeight, currentReps, showRestTimer]);
 
     // Loading state
     if (loading) {
@@ -451,10 +471,12 @@ function WorkoutContent() {
 
         setSelectedDifficulty('normal');
 
-        // Start rest timer
+        // Start rest timer with end timestamp (works when phone is locked)
         if (!isLastSet || !isLastExercise) {
-            setRestTimeLeft(activeExercise.restSeconds);
-            setRestTimeTotal(activeExercise.restSeconds);
+            const restDuration = activeExercise.restSeconds;
+            setRestTimeLeft(restDuration);
+            setRestTimeTotal(restDuration);
+            setRestEndTime(Date.now() + restDuration * 1000);
             setShowRestTimer(true);
         }
     };
@@ -1136,7 +1158,10 @@ function WorkoutContent() {
                                     </p>
                                 </div>
                                 <button
-                                    onClick={() => setShowRestTimer(false)}
+                                    onClick={() => {
+                                        setShowRestTimer(false);
+                                        setRestEndTime(null);
+                                    }}
                                     className="px-6 h-12 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-900 dark:text-white font-bold rounded-2xl transition-all active:scale-95 border border-gray-300 dark:border-white/20 shadow-lg"
                                 >
                                     Skip Rest
