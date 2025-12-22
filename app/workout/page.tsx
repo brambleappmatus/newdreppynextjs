@@ -246,14 +246,12 @@ function WorkoutContent() {
         return () => clearInterval(timer);
     }, [showRestTimer, restTimeLeft]);
 
-    // Fetch AI coaching tip when exercise changes
+    // Fetch AI coaching tip when exercise or weight/reps changes
     useEffect(() => {
         const fetchCoachingTip = async () => {
             if (!activeExercise) return;
 
             const history = exerciseHistory[activeExercise.id];
-            const currentExWeight = workout?.exercises[activeExerciseIndex]?.sets[0]?.weight ?? 0;
-            const currentExReps = workout?.exercises[activeExerciseIndex]?.sets[0]?.targetReps ?? 10;
 
             setTipLoading(true);
             try {
@@ -263,8 +261,8 @@ function WorkoutContent() {
                     body: JSON.stringify({
                         exerciseName: activeExercise.name,
                         muscleGroup: activeExercise.muscleGroup,
-                        currentWeight: currentExWeight,
-                        currentReps: currentExReps,
+                        currentWeight: currentWeight,  // Use picker value
+                        currentReps: currentReps,      // Use picker value
                         lastWeight: history?.lastWeight ?? 0,
                         lastReps: history?.lastReps ?? 0,
                         prWeight: history?.prWeight ?? 0,
@@ -281,10 +279,10 @@ function WorkoutContent() {
             setTipLoading(false);
         };
 
-        // Debounce the API call
-        const timer = setTimeout(fetchCoachingTip, 300);
+        // Debounce the API call (longer debounce for weight/rep changes)
+        const timer = setTimeout(fetchCoachingTip, 800);
         return () => clearTimeout(timer);
-    }, [activeExerciseIndex, activeExercise, trainingGoal, exerciseHistory, workout]);
+    }, [activeExerciseIndex, activeExercise, trainingGoal, exerciseHistory, currentWeight, currentReps]);
 
     // Loading state
     if (loading) {
@@ -325,10 +323,88 @@ function WorkoutContent() {
         );
     }
 
-    const handleSetComplete = () => {
+    const handleSetComplete = async () => {
         const currentSetIndex = activeExercise.currentSet - 1;
         const isLastSet = activeExercise.currentSet >= activeExercise.sets.length;
         const isLastExercise = activeExerciseIndex >= workout.exercises.length - 1;
+
+        // Save completed set to Supabase for history
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                // First, get or create a workout session
+                let sessionId: string | null = null;
+
+                // Check if we have an existing session for this workout
+                const { data: existingSession } = await supabase
+                    .from('workout_sessions')
+                    .select('id')
+                    .eq('user_id', user.id)
+                    .eq('template_id', workout.id)
+                    .eq('status', 'in_progress')
+                    .single();
+
+                if (existingSession) {
+                    sessionId = existingSession.id;
+                } else {
+                    // Create new session
+                    const { data: newSession } = await supabase
+                        .from('workout_sessions')
+                        .insert({
+                            user_id: user.id,
+                            template_id: workout.id,
+                            name: workout.name,
+                            status: 'in_progress',
+                            started_at: new Date().toISOString(),
+                        })
+                        .select('id')
+                        .single();
+                    sessionId = newSession?.id ?? null;
+                }
+
+                if (sessionId) {
+                    // Get or create session_exercise entry
+                    let sessionExerciseId: string | null = null;
+
+                    const { data: existingExercise } = await supabase
+                        .from('session_exercises')
+                        .select('id')
+                        .eq('session_id', sessionId)
+                        .eq('exercise_id', activeExercise.id)
+                        .single();
+
+                    if (existingExercise) {
+                        sessionExerciseId = existingExercise.id;
+                    } else {
+                        const { data: newExercise } = await supabase
+                            .from('session_exercises')
+                            .insert({
+                                session_id: sessionId,
+                                exercise_id: activeExercise.id,
+                                order_index: activeExerciseIndex,
+                            })
+                            .select('id')
+                            .single();
+                        sessionExerciseId = newExercise?.id ?? null;
+                    }
+
+                    if (sessionExerciseId) {
+                        // Save the completed set
+                        await supabase
+                            .from('completed_sets')
+                            .insert({
+                                session_exercise_id: sessionExerciseId,
+                                set_number: currentSetIndex + 1,
+                                reps: currentReps,
+                                weight: currentWeight,
+                                difficulty: selectedDifficulty,
+                            });
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Failed to save set to history:', error);
+        }
 
         // Update the workout
         setWorkout(prev => {
@@ -698,8 +774,8 @@ function WorkoutContent() {
                                 <button
                                     onClick={() => setTrainingGoal('hypertrophy')}
                                     className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${trainingGoal === 'hypertrophy'
-                                            ? 'bg-white dark:bg-white/20 text-gray-900 dark:text-white shadow-sm'
-                                            : 'text-gray-500 dark:text-gray-400'
+                                        ? 'bg-white dark:bg-white/20 text-gray-900 dark:text-white shadow-sm'
+                                        : 'text-gray-500 dark:text-gray-400'
                                         }`}
                                 >
                                     💪 Hypertrophy
@@ -707,8 +783,8 @@ function WorkoutContent() {
                                 <button
                                     onClick={() => setTrainingGoal('strength')}
                                     className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${trainingGoal === 'strength'
-                                            ? 'bg-white dark:bg-white/20 text-gray-900 dark:text-white shadow-sm'
-                                            : 'text-gray-500 dark:text-gray-400'
+                                        ? 'bg-white dark:bg-white/20 text-gray-900 dark:text-white shadow-sm'
+                                        : 'text-gray-500 dark:text-gray-400'
                                         }`}
                                 >
                                     🏋️ Strength
@@ -717,13 +793,13 @@ function WorkoutContent() {
 
                             {/* AI Coaching Tip */}
                             <div className={`bg-gradient-to-r ${trainingGoal === 'strength'
-                                    ? 'from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 border-orange-200/50 dark:border-orange-500/20'
-                                    : 'from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200/50 dark:border-blue-500/20'
+                                ? 'from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 border-orange-200/50 dark:border-orange-500/20'
+                                : 'from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200/50 dark:border-blue-500/20'
                                 } rounded-2xl p-4 border`}>
                                 <div className="flex items-start gap-3">
                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${trainingGoal === 'strength'
-                                            ? 'bg-orange-100 dark:bg-orange-500/20'
-                                            : 'bg-blue-100 dark:bg-blue-500/20'
+                                        ? 'bg-orange-100 dark:bg-orange-500/20'
+                                        : 'bg-blue-100 dark:bg-blue-500/20'
                                         }`}>
                                         {tipLoading ? (
                                             <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin opacity-50" />
