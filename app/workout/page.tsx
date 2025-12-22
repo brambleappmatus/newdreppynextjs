@@ -400,61 +400,78 @@ function WorkoutContent() {
                     setTouchStart(null);
                 }}
             >
-                {/* Exercise Progression Pills */}
-                <div className="flex gap-1.5 mb-4 px-4 overflow-x-auto scrollbar-hide">
-                    {workout.exercises.map((ex, idx) => (
-                        <button
-                            key={ex.id}
-                            onClick={() => {
-                                setActiveExerciseIndex(idx);
-                                setCurrentWeight(workout.exercises[idx].sets[0]?.weight ?? 0);
-                            }}
-                            className={`h-2 rounded-full transition-all shrink-0 ${workout.exercises.length <= 8
-                                ? 'flex-1 min-w-6 max-w-12'
-                                : 'w-6'
-                                } ${idx === activeExerciseIndex
-                                    ? 'bg-gray-900 dark:bg-white'
-                                    : ex.sets.every(s => s.completed)
-                                        ? 'bg-gray-500 dark:bg-gray-400'
-                                        : 'bg-gray-200 dark:bg-gray-700'
-                                }`}
-                            aria-label={`Go to ${ex.name}`}
-                        />
-                    ))}
-                </div>
-
-                {/* Exercise Header with Glass Effect */}
+                {/* Exercise Header with Navigation */}
                 <div className="mb-4 bg-white/60 dark:bg-white/5 backdrop-blur-xl rounded-3xl p-4 border border-gray-200/50 dark:border-white/10 shadow-xl">
-                    <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-0.5">{activeExercise.name}</h1>
-                            <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">{activeExercise.muscleGroup}</p>
+                    {/* Navigation Row */}
+                    <div className="flex items-center justify-between mb-3">
+                        {/* Left Arrow */}
+                        <button
+                            onClick={() => {
+                                if (activeExerciseIndex > 0) {
+                                    setActiveExerciseIndex(activeExerciseIndex - 1);
+                                    setCurrentWeight(workout.exercises[activeExerciseIndex - 1].sets[0]?.weight ?? 0);
+                                }
+                            }}
+                            disabled={activeExerciseIndex === 0}
+                            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-90 ${activeExerciseIndex === 0
+                                    ? 'bg-gray-100 dark:bg-white/5 text-gray-300 dark:text-gray-600'
+                                    : 'bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-900 dark:text-white'
+                                }`}
+                            aria-label="Previous exercise"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+
+                        {/* Exercise Name & Info */}
+                        <div className="flex-1 text-center px-3">
+                            <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-0.5 truncate">{activeExercise.name}</h1>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{activeExercise.muscleGroup}</p>
                         </div>
 
-                        {/* Quick Actions */}
-                        <div className="flex gap-2">
-                            <button
-                                onClick={handleSubstitute}
-                                className="px-4 h-10 rounded-full bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 border border-gray-300 dark:border-white/20 flex items-center justify-center transition-all active:scale-90 shadow-md text-xs font-bold text-gray-900 dark:text-white"
-                            >
-                                Swap
-                            </button>
-                        </div>
+                        {/* Right Arrow */}
+                        <button
+                            onClick={() => {
+                                if (activeExerciseIndex < workout.exercises.length - 1) {
+                                    setActiveExerciseIndex(activeExerciseIndex + 1);
+                                    setCurrentWeight(workout.exercises[activeExerciseIndex + 1].sets[0]?.weight ?? 0);
+                                }
+                            }}
+                            disabled={activeExerciseIndex === workout.exercises.length - 1}
+                            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-90 ${activeExerciseIndex === workout.exercises.length - 1
+                                    ? 'bg-gray-100 dark:bg-white/5 text-gray-300 dark:text-gray-600'
+                                    : 'bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-900 dark:text-white'
+                                }`}
+                            aria-label="Next exercise"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
                     </div>
 
-                    {/* Progress Info */}
-                    <div className="flex items-center gap-3 text-sm mb-3">
-                        <span className="text-gray-600 dark:text-gray-400 font-medium">
-                            Exercise {activeExerciseIndex + 1}/{totalExercises}
-                        </span>
-                        <span className="text-gray-400 dark:text-gray-600">•</span>
-                        <span className="text-gray-900 dark:text-white font-semibold">
-                            {completedExercises} completed
-                        </span>
+                    {/* Progress Info & Swap */}
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2 text-sm">
+                            <span className="text-gray-600 dark:text-gray-400 font-medium">
+                                Exercise {activeExerciseIndex + 1}/{totalExercises}
+                            </span>
+                            <span className="text-gray-400 dark:text-gray-600">•</span>
+                            <span className="text-gray-900 dark:text-white font-semibold">
+                                {completedExercises} completed
+                            </span>
+                        </div>
+                        <button
+                            onClick={handleSubstitute}
+                            className="px-3 h-8 rounded-full bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 border border-gray-300 dark:border-white/20 flex items-center justify-center transition-all active:scale-90 text-xs font-semibold text-gray-700 dark:text-gray-300"
+                        >
+                            Swap
+                        </button>
                     </div>
 
                     {/* Overall Progress Bar with Gradient */}
-                    <div className="h-2 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden shadow-inner">
+                    <div className="h-1.5 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden shadow-inner">
                         <div
                             className="h-full bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 transition-all duration-500 rounded-full"
                             style={{ width: `${(completedExercises / totalExercises) * 100}%` }}
