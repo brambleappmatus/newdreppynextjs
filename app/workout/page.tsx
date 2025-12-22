@@ -403,7 +403,7 @@ function WorkoutContent() {
                 {/* Exercise Header with Navigation */}
                 <div className="mb-4 bg-white/60 dark:bg-white/5 backdrop-blur-xl rounded-3xl p-4 border border-gray-200/50 dark:border-white/10 shadow-xl">
                     {/* Navigation Row */}
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2 mb-3">
                         {/* Left Arrow */}
                         <button
                             onClick={() => {
@@ -413,9 +413,9 @@ function WorkoutContent() {
                                 }
                             }}
                             disabled={activeExerciseIndex === 0}
-                            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-90 ${activeExerciseIndex === 0
-                                    ? 'bg-gray-100 dark:bg-white/5 text-gray-300 dark:text-gray-600'
-                                    : 'bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-900 dark:text-white'
+                            className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center transition-all active:scale-90 ${activeExerciseIndex === 0
+                                ? 'bg-gray-100 dark:bg-white/5 text-gray-300 dark:text-gray-600'
+                                : 'bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-900 dark:text-white'
                                 }`}
                             aria-label="Previous exercise"
                         >
@@ -425,9 +425,9 @@ function WorkoutContent() {
                         </button>
 
                         {/* Exercise Name & Info */}
-                        <div className="flex-1 text-center px-3">
+                        <div className="flex-1 min-w-0 text-center">
                             <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-0.5 truncate">{activeExercise.name}</h1>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{activeExercise.muscleGroup}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium truncate">{activeExercise.muscleGroup}</p>
                         </div>
 
                         {/* Right Arrow */}
@@ -439,9 +439,9 @@ function WorkoutContent() {
                                 }
                             }}
                             disabled={activeExerciseIndex === workout.exercises.length - 1}
-                            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-90 ${activeExerciseIndex === workout.exercises.length - 1
-                                    ? 'bg-gray-100 dark:bg-white/5 text-gray-300 dark:text-gray-600'
-                                    : 'bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-900 dark:text-white'
+                            className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center transition-all active:scale-90 ${activeExerciseIndex === workout.exercises.length - 1
+                                ? 'bg-gray-100 dark:bg-white/5 text-gray-300 dark:text-gray-600'
+                                : 'bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-900 dark:text-white'
                                 }`}
                             aria-label="Next exercise"
                         >
