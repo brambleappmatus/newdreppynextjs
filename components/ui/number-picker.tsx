@@ -116,10 +116,12 @@ export function NumberWheel({
                     onTouchStart={(e) => e.stopPropagation()}
                     onTouchMove={(e) => e.stopPropagation()}
                     onTouchEnd={(e) => e.stopPropagation()}
-                    className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory touch-pan-x"
+                    className="flex overflow-x-auto overflow-y-hidden scrollbar-hide snap-x snap-mandatory"
                     style={{
                         WebkitOverflowScrolling: 'touch',
                         scrollSnapType: 'x mandatory',
+                        touchAction: 'pan-x',
+                        overscrollBehavior: 'contain',
                     }}
                 >
                     {tripleValues.map((v, index) => {
