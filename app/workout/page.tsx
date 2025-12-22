@@ -94,6 +94,7 @@ function WorkoutContent() {
     const [showStatsOnly, setShowStatsOnly] = useState(false);
     const [tipFeedback, setTipFeedback] = useState<'up' | 'down' | null>(null);
     const tipCacheRef = useRef<Map<string, string>>(new Map());
+    const lastTipFetchTimeRef = useRef<number>(0);
 
     // Fetch workout data based on program ID
     useEffect(() => {
@@ -276,6 +277,12 @@ function WorkoutContent() {
         const fetchCoachingTip = async () => {
             if (!activeExercise || !workout) return;
 
+            // Enforce 5-second minimum gap between tip requests
+            const timeSinceLastFetch = Date.now() - lastTipFetchTimeRef.current;
+            if (timeSinceLastFetch < 5000 && lastTipFetchTimeRef.current > 0) {
+                return;
+            }
+
             const cacheKey = `${activeExercise.id}-${currentWeight}-${currentReps}`;
 
             // Check cache first (unless resting - always get fresh tip for rest)
@@ -305,6 +312,7 @@ function WorkoutContent() {
             );
 
             setTipLoading(true);
+            lastTipFetchTimeRef.current = Date.now(); // Record fetch time
             try {
                 const response = await fetch('/api/coaching-tip', {
                     method: 'POST',
