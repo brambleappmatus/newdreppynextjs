@@ -26,6 +26,8 @@ export function NumberWheel({
     const itemWidth = 48;
     const [centerIndex, setCenterIndex] = useState(-1);
     const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
+    const isUserScrolling = useRef(false);
+    const lastExternalValue = useRef(value);
 
     // Generate values array
     const values: number[] = [];
@@ -55,6 +57,7 @@ export function NumberWheel({
 
     // Handle scroll - update value IMMEDIATELY, debounce infinite scroll reset
     const handleScroll = useCallback(() => {
+        isUserScrolling.current = true;
         const newCenterIndex = calculateCenterIndex();
         setCenterIndex(newCenterIndex);
 
@@ -67,6 +70,7 @@ export function NumberWheel({
         // Debounce only the infinite scroll position reset
         if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
         scrollTimeout.current = setTimeout(() => {
+            isUserScrolling.current = false;
             if (scrollRef.current && containerRef.current) {
                 const scrollLeft = scrollRef.current.scrollLeft;
                 const oneSetWidth = values.length * itemWidth;
@@ -81,8 +85,15 @@ export function NumberWheel({
         }, 200);
     }, [calculateCenterIndex, getValueFromIndex, onChange, values, centerOffset, itemWidth]);
 
-    // Position picker when value changes (initial + when switching exercises)
+    // Position picker only for initial mount and external value changes (e.g., switching exercises)
     useEffect(() => {
+        // Skip if user is actively scrolling
+        if (isUserScrolling.current) return;
+
+        // Only scroll if value changed externally
+        if (value === lastExternalValue.current) return;
+        lastExternalValue.current = value;
+
         if (scrollRef.current && containerRef.current) {
             const containerWidth = containerRef.current.offsetWidth;
             const paddingWidth = (containerWidth / 2) - (itemWidth / 2);
