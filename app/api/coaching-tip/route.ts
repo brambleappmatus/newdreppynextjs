@@ -18,6 +18,8 @@ interface CoachingRequest {
     currentSet?: number;
     totalSets?: number;
     lastSetDifficulty?: 'easy' | 'normal' | 'hard';
+    lastCompletedWeight?: number | null;
+    lastCompletedReps?: number | null;
     timeOfDay?: 'morning' | 'afternoon' | 'evening' | 'night';
     workoutDuration?: number;
     totalSetsCompleted?: number;
@@ -44,26 +46,36 @@ export async function POST(request: NextRequest) {
             currentSet,
             totalSets,
             lastSetDifficulty,
+            lastCompletedWeight,
+            lastCompletedReps,
             timeOfDay,
             workoutDuration,
             totalSetsCompleted,
         } = body;
 
-        // Auto-select tip mode: 70% performance, 20% form, 10% motivation
+        // Auto-select tip mode: 75% performance, 15% form, 10% motivation
         const random = Math.random();
-        const tipMode = random < 0.7 ? 'performance' : random < 0.9 ? 'form' : 'motivation';
+        const tipMode = random < 0.75 ? 'performance' : random < 0.9 ? 'form' : 'motivation';
 
-        // Build context
+        // Build context - strength is 1-5 reps, hypertrophy is 8-12 reps
         const goalContext = trainingGoal === 'strength'
-            ? 'Goal: STRENGTH (heavy, 1-6 reps, power).'
-            : 'Goal: HYPERTROPHY (8-15 reps, controlled tempo, mind-muscle).';
+            ? 'Goal: STRENGTH (heavy weight, 1-5 reps max, explosive power, long rest).'
+            : 'Goal: HYPERTROPHY (moderate weight, 8-12 reps, controlled tempo, feel the muscle).';
 
         const historyContext = lastWeight > 0
-            ? `Last session: ${lastWeight}kg × ${lastReps}. PR: ${prWeight}kg × ${prReps}.`
+            ? `Previous session: ${lastWeight}kg × ${lastReps}. PR: ${prWeight}kg × ${prReps}.`
             : 'First time with this exercise.';
 
         const setContext = currentSet && totalSets ? `Set ${currentSet}/${totalSets}.` : '';
-        const currentContext = `Current: ${currentWeight}kg × ${currentReps}. ${setContext}`;
+
+        // During rest, reference what was ACTUALLY completed, not what's selected
+        const completedInfo = lastCompletedWeight && lastCompletedReps
+            ? `Just completed: ${lastCompletedWeight}kg × ${lastCompletedReps} reps.`
+            : '';
+
+        const currentContext = isResting
+            ? `${completedInfo} ${setContext} Now selecting: ${currentWeight}kg × ${currentReps}.`
+            : `Selected: ${currentWeight}kg × ${currentReps}. ${setContext}`;
 
         // Time/duration context
         let timeContext = '';
@@ -76,20 +88,8 @@ export async function POST(request: NextRequest) {
 
         // Rest context
         let restContext = '';
-        if (isResting && restTimeLeft !== undefined) {
-            const mins = Math.floor(restTimeLeft / 60);
-            const secs = restTimeLeft % 60;
-            restContext = `RESTING (${mins}:${secs.toString().padStart(2, '0')} left). Last set: ${lastSetDifficulty || 'normal'}.`;
-        }
-
-        // Conversation context
-        let conversationContext = '';
-        if (previousTip && previousWeight !== undefined && !isResting) {
-            const weightUp = currentWeight > previousWeight;
-            const weightDown = currentWeight < previousWeight;
-            if (weightUp || weightDown) {
-                conversationContext = `You said: "${previousTip}" (at ${previousWeight}kg). They ${weightUp ? 'increased' : 'decreased'} to ${currentWeight}kg.`;
-            }
+        if (isResting && restTimeLeft !== undefined && lastSetDifficulty) {
+            restContext = `RESTING. Last set felt: ${lastSetDifficulty}.`;
         }
 
         // Difficulty context
@@ -101,16 +101,21 @@ export async function POST(request: NextRequest) {
         // Build prompt based on auto-selected mode
         let modeInstruction = '';
         if (isResting) {
-            modeInstruction = `REST TIP: Quick advice about weight for next set. If "easy" = suggest adding weight. If "hard" = suggest keeping or dropping. Be encouraging about their rest.`;
+            modeInstruction = `REST TIP: Based on last set feeling ${lastSetDifficulty || 'normal'}, suggest weight for next set. "Easy" = add weight. "Hard" = keep or drop. Be encouraging.`;
         } else if (tipMode === 'motivation') {
-            modeInstruction = `MOTIVATION: Give an energetic, hype message! Use 1-2 emojis. Get them fired up! Max 12 words.`;
+            modeInstruction = `MOTIVATION: Give an energetic, hype message! 1-2 emojis. Max 12 words.`;
         } else if (tipMode === 'form') {
-            modeInstruction = `FORM TIP: Give ONE specific technique cue for ${exerciseName}. Examples: "squeeze at top", "drive through heels", "elbows tucked". Max 12 words.`;
+            modeInstruction = `FORM TIP: ONE specific technique cue for ${exerciseName}. Max 12 words.`;
         } else {
-            modeInstruction = `PERFORMANCE TIP: Give actionable advice for this set - weight adjustment, rep target, or focus cue. Max 15 words.`;
+            // Performance tip - be goal-specific
+            if (trainingGoal === 'strength') {
+                modeInstruction = `STRENGTH TIP: Focus on power, explosive movement, heavy singles/triples. 1-5 rep range. Max 15 words.`;
+            } else {
+                modeInstruction = `HYPERTROPHY TIP: Focus on mind-muscle connection, controlled tempo, 8-12 rep range. Max 15 words.`;
+            }
         }
 
-        const prompt = `You are a gym coach giving a quick tip. ${modeInstruction}
+        const prompt = `You are a gym coach. ${modeInstruction}
 
 ${goalContext}
 ${historyContext}
@@ -118,12 +123,13 @@ ${currentContext}
 ${timeContext}
 ${difficultyContext}
 ${restContext}
-${conversationContext}
 
-${previousTip && currentWeight > (previousWeight || 0) ? 'They followed your advice and added weight - acknowledge this positively!' : ''}
-${currentWeight >= prWeight && prWeight > 0 ? 'This is at or above their PR - be extra encouraging!' : ''}
+${currentWeight >= prWeight && prWeight > 0 ? 'At or above PR - extra encouragement!' : ''}
 
-Respond with ONLY the tip text. No quotes, no labels. Be concise and natural.`;
+IMPORTANT: Do NOT say they "hit" or "completed" a weight unless isResting is true and lastCompletedWeight is provided.
+If isResting, reference the COMPLETED weight (${lastCompletedWeight}kg), not the selected weight.
+
+Respond with ONLY the tip. No quotes. Be concise and natural.`;
 
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
@@ -141,12 +147,12 @@ Respond with ONLY the tip text. No quotes, no labels. Be concise and natural.`;
 
         if (!response.ok) {
             return NextResponse.json({
-                tip: getStaticTip(trainingGoal, currentWeight, previousWeight ?? 0, prWeight, isResting, lastSetDifficulty)
+                tip: getStaticTip(trainingGoal, currentWeight, prWeight, isResting, lastSetDifficulty)
             });
         }
 
         const data = await response.json();
-        const tip = data.choices[0]?.message?.content?.trim() || getStaticTip(trainingGoal, currentWeight, previousWeight ?? 0, prWeight, isResting, lastSetDifficulty);
+        const tip = data.choices[0]?.message?.content?.trim() || getStaticTip(trainingGoal, currentWeight, prWeight, isResting, lastSetDifficulty);
 
         return NextResponse.json({ tip });
     } catch (error) {
@@ -157,19 +163,17 @@ Respond with ONLY the tip text. No quotes, no labels. Be concise and natural.`;
     }
 }
 
-function getStaticTip(goal: string, current: number, previous: number, pr: number, isResting?: boolean, difficulty?: string): string {
+function getStaticTip(goal: string, current: number, pr: number, isResting?: boolean, difficulty?: string): string {
     if (isResting) {
-        if (difficulty === 'easy') return 'Easy set! Try adding 2.5kg next.';
+        if (difficulty === 'easy') return 'Easy set! Add some weight next.';
         if (difficulty === 'hard') return 'Tough one! Rest up, same weight.';
-        return 'Good rest! Keep the same weight.';
+        return 'Good rest! Keep the momentum.';
     }
     if (goal === 'strength') {
-        if (current >= pr && pr > 0) return 'PR territory! 🔥 Brace hard!';
-        if (current > previous && previous > 0) return 'Nice weight bump! Crush it!';
-        return 'Explosive power, full lockout.';
+        if (current >= pr && pr > 0) return 'PR territory! 🔥 Brace hard, explode up!';
+        return 'Heavy and explosive. 1-5 reps max.';
     } else {
         if (current >= pr && pr > 0) return 'At your max! Control every rep.';
-        if (current > previous && previous > 0) return 'Good increase! Slow tempo.';
-        return 'Feel the muscle, squeeze at top.';
+        return 'Slow tempo, squeeze at top. 8-12 reps.';
     }
 }

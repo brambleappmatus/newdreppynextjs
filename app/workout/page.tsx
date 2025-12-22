@@ -85,6 +85,10 @@ function WorkoutContent() {
     const [previousTipContext, setPreviousTipContext] = useState<{ tip: string; weight: number; reps: number } | null>(null);
     const [lastCompletedSetDifficulty, setLastCompletedSetDifficulty] = useState<'easy' | 'normal' | 'hard' | null>(null);
 
+    // Track what was ACTUALLY completed (not just selected)
+    const [lastCompletedWeight, setLastCompletedWeight] = useState<number | null>(null);
+    const [lastCompletedReps, setLastCompletedReps] = useState<number | null>(null);
+
     // Advanced coaching context
     const [workoutStartTime] = useState<number>(Date.now());
     const [showStatsOnly, setShowStatsOnly] = useState(false);
@@ -323,6 +327,9 @@ function WorkoutContent() {
                         currentSet: activeExercise.currentSet,
                         totalSets: activeExercise.sets.length,
                         lastSetDifficulty: lastCompletedSetDifficulty,
+                        // Actual completed values (not just selected)
+                        lastCompletedWeight,
+                        lastCompletedReps,
                         timeOfDay,
                         workoutDuration,
                         totalSetsCompleted,
@@ -502,8 +509,10 @@ function WorkoutContent() {
             setCurrentWeight(nextExercise.sets[0]?.weight ?? 0);
         }
 
-        // Save the difficulty of this set before resetting
+        // Save the difficulty and actual completed values before resetting
         setLastCompletedSetDifficulty(selectedDifficulty);
+        setLastCompletedWeight(currentWeight);
+        setLastCompletedReps(currentReps);
 
         // Update previous tip context with the COMPLETED weight/reps
         // This way AI only says "you hit X weight" after you actually complete the set
